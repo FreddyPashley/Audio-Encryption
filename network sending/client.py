@@ -1,17 +1,15 @@
-import numpy as np
-import soundfile
+import socket
 import pylab
-import matplotlib
-from warnings import filterwarnings
+import soundfile
 import os
-from random import randint
+import numpy as np
 
-filterwarnings("ignore")  # Suppresses 'complex numbers warning' in terminal when working with frequencies.
-matplotlib.use("tkagg")  # Use tkinter with matplotlib (I know, not nice)
-
+# Server configuration
+HOST = '127.0.0.1'  # The server's hostname or IP address
+PORT = 65432        # The port used by the server
 character_set = " ABCDEFGHIJKLMNOPQRSTUVWYZabcdefghijklmnopqrstuvwxyz0123456789.!?,:;'@[]{}\"£$%^&*()/*-+_=`¬\\|"
 
-def detectFrequencies(file_path, threshold=.75, DEV=True, space=100):
+def detectFrequencies(file_path, threshold=.75, DEV=False, space=100):
     """Decodes file into message"""
 
     audio_samples, sample_rate = soundfile.read(file_path, dtype="float32")  # Reading the audio file and getting the audio samples from it for analysis.
@@ -35,7 +33,7 @@ def detectFrequencies(file_path, threshold=.75, DEV=True, space=100):
     detected_frequencies = []
     filler_frequencies = []
     target_frequencies = [i for i in range(0, space ** 2)]  # A list of all possible frequencies.
-    print("Decoding...")
+    #print("Decoding...")
     for freq in target_frequencies:
         freq_bin = np.abs(freq_bins - freq)
         freq_idx = np.argmin(freq_bin)
@@ -80,57 +78,42 @@ def detectFrequencies(file_path, threshold=.75, DEV=True, space=100):
         return final_str
 
 
-def createFrequencies(message, output_file, space=100):
-    """Encodes message into file"""
-    if len(message) >= 100:
-        return "Message cannot exceed 99 characters"
-        """This limit is due to encoding the index of where the character appears in the message.
-        As the frequencies are ##ii (## = frequency, ii = index), the most we can do is index 99."""
-    
-    # Creates frequencies to add based on where the character is in the character set and in the message
-    frequencies = []
-    for ci, c in enumerate(message):
-        f_base = (character_set.index(c) + 1) * space
-        frequencies.append(f_base + (ci + 1))
+while True:
+    persistent_files = input("Save latest audio file? (y/n) ").lower()
+    if persistent_files == "y":
+        persistent_files = True
+        break
+    elif persistent_files == "n":
+        persistent_files = False
+        break
 
-    for i in range(space // 10, space, space // 10):
-        if randint(1, space // 10) == 1:
-            frequencies.append(i)
-    for i in range((len(character_set) * space) + (space - 1), space ** 2, space // 10):
-        if randint(1, space // 10) == 1:
-            frequencies.append(i)
+while True:
+    # Create a socket object
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
+        # Connect to the server
+        connection = False
+        while not connection:
+            try:
+                client_socket.connect((HOST, PORT))
+                connection = True
+            except ConnectionRefusedError: pass
 
-    duration = 1  # Duration of the audio in seconds.
-    sample_rate = 44100  # Sample rate (samples per second).
-    t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)  # Generate time array.
+        # Receive the sound file
+        with open('received_message.wav', 'wb') as file:
+            client_socket.settimeout(10)
+            while True:
+                try:
+                    data = client_socket.recv(1024)
+                    if not data:
+                        break
+                    file.write(data)
+                    if b"END_OF_TRANSMISSION" in data:
+                        break
+                except socket.timeout:
+                    break
+                except Exception as e:
+                    break
 
-    # Generate audio samples.
-    audio_samples = np.zeros_like(t)
-    for freq in frequencies:
-        audio_samples += np.sin(2 * np.pi * freq * t)
-    audio_samples /= np.max(np.abs(audio_samples))  # Normalise audio samples
-
-    soundfile.write(output_file, audio_samples, sample_rate, subtype="PCM_24")  # Save audio to .wav file.
-    return file_path + " created successfully"
-
-
-if __name__ == "__main__":
-    # User interface
-    while True:
-        choice = ""
-        while choice not in ["d", "decode", "e", "encode"]:
-            choice = input("Encode/decode ").lower()
-        if choice in ["d", "decode"]:
-            file_path = ""
-            while not os.path.exists(file_path):
-                file_path = input("File path: ")
-            print(detectFrequencies(file_path))
-        else:
-            message = ""
-            while message == "":
-                message = input("Message: ")
-            file_path = input("File name: ")
-            while os.path.exists(file_path):
-                file_path = input("File name: ")
-            print(createFrequencies(message, file_path + ".wav"))
-        print("=" * 10)
+        print(detectFrequencies("received_message.wav"))
+        if not persistent_files:
+            os.remove("received_message.wav")

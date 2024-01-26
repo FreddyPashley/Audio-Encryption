@@ -111,7 +111,7 @@ def createFrequencies(message, output_file, space=100):
     audio_samples /= np.max(np.abs(audio_samples))  # Normalise audio samples
 
     soundfile.write(output_file, audio_samples, sample_rate, subtype="PCM_24")  # Save audio to .wav file.
-    return file_path + " created successfully"
+    return output_file + " created successfully"
 
 
 if __name__ == "__main__":
