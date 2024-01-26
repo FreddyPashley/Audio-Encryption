@@ -123,14 +123,14 @@ if __name__ == "__main__":
         if choice in ["d", "decode"]:
             file_path = ""
             while not os.path.exists(file_path):
-                file_path = input("File path: ")
+                file_path = input("File name: ") + ".wav"
             print(detectFrequencies(file_path))
         else:
             message = ""
             while message == "":
                 message = input("Message: ")
-            file_path = input("File name: ")
+            file_path = input("File name: ") + ".wav"
             while os.path.exists(file_path):
-                file_path = input("File name: ")
-            print(createFrequencies(message, file_path + ".wav"))
+                file_path = input("File name: ") + ".wav"
+            print(createFrequencies(message, file_path))
         print("=" * 10)
