@@ -1,22 +1,28 @@
-import socket
-import pylab
-import soundfile
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.audio import MIMEAudio
+from email.mime.base import MIMEBase
+from email import encoders
 import os
 import numpy as np
+import soundfile
 from random import randint
 
-# Server configuration
-HOST = '127.0.0.1'  # localhost
-PORT = 65432        # Port to listen on (non-privileged ports are > 1023)
-character_set = " ABCDEFGHIJKLMNOPQRSTUVWYZabcdefghijklmnopqrstuvwxyz0123456789.!?,:;'@[]{}\"£$%^&*()/*-+_=`¬\\|"
+# Email configuration
+SENDER_EMAIL = 'fred@fpashley.xyz'  # Update with your email address
+RECIPIENT_EMAIL = 'encryption@fpashley.xyz'  # Update with recipient's email address
+EMAIL_PASSWORD = 'qbcxz47m!'  # Update with your email password
 
-def createFrequencies(message, output_file, space=100):
+# Character set and server configuration
+character_set = " ABCDEFGHIJKLMNOPQRSTUVWYZabcdefghijklmnopqrstuvwxyz0123456789.!?,:;'@[]{}\"£$%^&*()/*-+_=`¬\\|"
+space = 100  # Space between frequencies
+
+
+def createFrequencies(message, output_file):
     """Encodes message into file"""
     if len(message) >= 100:
         return "Message cannot exceed 99 characters"
-        """This limit is due to encoding the index of where the character appears in the message.
-        As the frequencies are ##ii (## = frequency, ii = index), the most we can do is index 99."""
-    
+
     # Creates frequencies to add based on where the character is in the character set and in the message
     frequencies = []
     for ci, c in enumerate(message):
@@ -44,37 +50,32 @@ def createFrequencies(message, output_file, space=100):
     return True
 
 
-while True:
-    persistent_files = input("Save latest audio file? (y/n) ").lower()
-    if persistent_files == "y":
-        persistent_files = True
-        break
-    elif persistent_files == "n":
-        persistent_files = False
-        break
+# Create the message.wav file
+message = input("Enter message: ")
+createFrequencies(message, output_file="message.wav")
 
+# Email sending functionality
+msg = MIMEMultipart()
+msg['From'] = SENDER_EMAIL
+msg['To'] = RECIPIENT_EMAIL
+msg['Subject'] = 'New encrypted message'
 
-while True:
-    message = input("")
-    # Create a socket object
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
-        # Bind the socket to the address and port
-        server_socket.bind((HOST, PORT))
+# Attach the audio file
+filename = 'message.wav'
+attachment = open(filename, 'rb')
+part = MIMEBase('application', 'octet-stream')
+part.set_payload(attachment.read())
+encoders.encode_base64(part)
+part.add_header('Content-Disposition', "attachment; filename= %s" % filename)
+msg.attach(part)
 
-        # Listen for incoming connections
-        server_socket.listen()
+# Connect to the SMTP server, login, send the email, and close the connection
+server = smtplib.SMTP('server167.web-hosting.com ', 465)
+server.starttls()
+server.login(SENDER_EMAIL, EMAIL_PASSWORD)
+server.sendmail(SENDER_EMAIL, RECIPIENT_EMAIL, msg.as_string())
+server.quit()
 
-        # Accept a connection and establish a connection with the client
-        conn, addr = server_socket.accept()
-
-        r = createFrequencies(message, output_file="message.wav")
-
-        if r:
-            # Send the sound file
-            with open('message.wav', 'rb') as file:
-                data = file.read()
-                conn.sendall(data)
-            conn.send(b"END_OF_TRANSMISSION")
-            if not persistent_files:
-                os.remove("message.wav")    
-            print(">> Sent <<")
+# Remove the temporary audio file
+os.remove("message.wav")
+print("Email Sent with Audio Attachment")
