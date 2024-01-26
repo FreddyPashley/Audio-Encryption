@@ -4,13 +4,14 @@ import pylab
 import matplotlib
 from warnings import filterwarnings
 import os
+from random import randint
 
 filterwarnings("ignore")  # Suppresses 'complex numbers warning' in terminal when working with frequencies.
 matplotlib.use("tkagg")  # Use tkinter with matplotlib (I know, not nice)
 
 character_set = " ABCDEFGHIJKLMNOPQRSTUVWYZabcdefghijklmnopqrstuvwxyz0123456789.!?,:;'@[]{}\"£$%^&*()/*-+_=`¬\\|"
 
-def detectFrequencies(file_path, threshold=.75, DEV=False):
+def detectFrequencies(file_path, threshold=.75, DEV=False, space=100):
     """Decodes file into message"""
 
     audio_samples, sample_rate = soundfile.read(file_path, dtype="float32")  # Reading the audio file and getting the audio samples from it for analysis.
@@ -32,18 +33,26 @@ def detectFrequencies(file_path, threshold=.75, DEV=False):
 
     # Go through all possible frequencies and check if there's a positive ID there.
     detected_frequencies = []
-    target_frequencies = [i for i in range(100, 10_000)]  # A list of all possible frequencies.
+    filler_frequencies = []
+    target_frequencies = [i for i in range(0, space ** 2)]  # A list of all possible frequencies.
     print("Decoding...")
     for freq in target_frequencies:
         freq_bin = np.abs(freq_bins - freq)
         freq_idx = np.argmin(freq_bin)
         magnitude = fft_magnitude[freq_idx] / np.max(fft_magnitude)  # 'Strength' of audio at frequency.
         if magnitude > threshold:  # Is the strength enough to count as a positive ID?
-            detected_frequencies.append((freq, magnitude))
+            if freq < (len(character_set) * space) + (space - 1) and freq >= space:
+                detected_frequencies.append((freq, magnitude))
+            else:
+                filler_frequencies.append((freq, magnitude))
 
-    # Plots positive frequencies on chart
-    for freq, magnitude in detected_frequencies:
-        pylab.plot(freq, magnitude, "bo")
+    if DEV:
+        # Plots positive frequencies on chart
+        for freq, magnitude in detected_frequencies:
+            pylab.plot(freq, magnitude, "go")
+        # Plots filler frequencies on chart
+        for freq, magnitude in filler_frequencies:
+            pylab.plot(freq, magnitude, "ro")
 
     """Creates a 'characters' dictionary with values of characters in the decoded message,
     and keys of the order which they appear based on frequency."""
@@ -52,7 +61,7 @@ def detectFrequencies(file_path, threshold=.75, DEV=False):
     characters = {}
     for freq, magnitude in detected_frequencies:
         freq = str(freq)
-        index = (int(freq)//100) - 1
+        index = (int(freq) // space) - 1
         freq = ("0" * (max_length - len(freq))) + freq
         order = int(freq[2:]) - 1
         characters[str(order)] = character_set[index]
@@ -64,14 +73,14 @@ def detectFrequencies(file_path, threshold=.75, DEV=False):
 
     if DEV:
         print(final_str)
-        pylab.xlim(0, 10_000)  # Limit x-axis scale.
+        pylab.xlim(0, space ** 2)  # Limit x-axis scale.
         pylab.show()
         return ""
     else:
         return final_str
 
 
-def createFrequencies(message, output_file):
+def createFrequencies(message, output_file, space=100):
     """Encodes message into file"""
     if len(message) >= 100:
         return "Message cannot exceed 99 characters"
@@ -81,8 +90,15 @@ def createFrequencies(message, output_file):
     # Creates frequencies to add based on where the character is in the character set and in the message
     frequencies = []
     for ci, c in enumerate(message):
-        f_base = (character_set.index(c) + 1) * 100
+        f_base = (character_set.index(c) + 1) * space
         frequencies.append(f_base + (ci + 1))
+
+    for i in range(space // 10, space, space // 10):
+        if randint(1, space // 10) == 1:
+            frequencies.append(i)
+    for i in range((len(character_set) * space) + (space - 1), space ** 2, space // 10):
+        if randint(1, space // 10) == 1:
+            frequencies.append(i)
 
     duration = 1  # Duration of the audio in seconds.
     sample_rate = 44100  # Sample rate (samples per second).
